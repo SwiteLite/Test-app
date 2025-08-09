@@ -143,6 +143,25 @@ body {
 }
 .dpad:active { transform: translateY(1px); }
 
+/* Dog */
+.dog {
+  width: 44px; height: 44px;
+  background: radial-gradient(60% 60% at 50% 40%, #b5754a, #6a3f22);
+  border-radius: 14px;
+  box-shadow: 0 5px 0 rgba(0,0,0,0.15);
+}
+.dog::before, .dog::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #6a3f22;
+  top: -6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.dog::before { left: 7px; }
+.dog::after { right: 7px; }
+
 @media (min-width: 900px) {
   #touch-controls { display: none; }
 }

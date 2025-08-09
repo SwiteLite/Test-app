@@ -17,6 +17,9 @@
   const MOUSE_SPEED_PX_PER_SEC = 140;
   const MOUSE_SPAWN_INTERVAL_MS = 1100;
   const MAX_MICE = 12;
+  const DOG_SPEED_PX_PER_SEC = 220;
+  const DOG_SPAWN_INTERVAL_MS = 6000;
+  const MAX_DOGS = 3;
 
   /**
    * Runtime state
@@ -32,6 +35,9 @@
     pressedKeys: new Set(),
     spawnTimer: 0,
     lastFrameTs: 0,
+    dogs: [],
+    dogSpawnTimer: 0,
+    endReason: null,
   };
 
   function resetGame() {
@@ -50,9 +56,18 @@
     state.mice = [];
     state.spawnTimer = 0;
 
+    // Clear dogs
+    state.dogs.forEach(d => d.el.remove());
+    state.dogs = [];
+    state.dogSpawnTimer = 0;
+    state.endReason = null;
+
     scoreEl.textContent = String(state.score);
     timeEl.textContent = String(state.remainingSeconds);
     positionEntity(catEl, state.cat.x, state.cat.y);
+
+    // Spawn an initial dog
+    spawnDog();
   }
 
   function startGame() {
@@ -64,15 +79,18 @@
     requestAnimationFrame(gameLoop);
   }
 
-  function endGame() {
+  function endGame(reason = 'time') {
     state.running = false;
+    state.endReason = reason;
     overlayEl.classList.add('show');
     const panel = overlayEl.querySelector('.panel');
     const existing = panel.querySelector('.final');
     if (existing) existing.remove();
     const p = document.createElement('p');
     p.className = 'final';
-    p.innerHTML = `Partie terminée ! Score : <strong>${state.score}</strong>`;
+    p.innerHTML = reason === 'caught'
+      ? `Un chien t’a attrapé ! Score : <strong>${state.score}</strong>`
+      : `Partie terminée ! Score : <strong>${state.score}</strong>`;
     panel.insertBefore(p, panel.querySelector('.actions'));
   }
 
@@ -125,6 +143,25 @@
     state.mice.push(mouse);
   }
 
+  function spawnDog() {
+    if (state.dogs.length >= MAX_DOGS) return;
+    const dogEl = document.createElement('div');
+    dogEl.className = 'entity dog';
+    stage.appendChild(dogEl);
+
+    const padding = 6;
+    const side = Math.floor(Math.random() * 4);
+    let x = 0, y = 0;
+    if (side === 0) { x = Math.random() * (stage.clientWidth - 44 - padding*2) + padding; y = padding; }
+    else if (side === 1) { x = stage.clientWidth - 44 - padding; y = Math.random() * (stage.clientHeight - 44 - padding*2) + padding; }
+    else if (side === 2) { x = Math.random() * (stage.clientWidth - 44 - padding*2) + padding; y = stage.clientHeight - 44 - padding; }
+    else { x = padding; y = Math.random() * (stage.clientHeight - 44 - padding*2) + padding; }
+
+    const dog = { x, y, width: 44, height: 44, vx: 0, vy: 0, el: dogEl };
+    positionEntity(dogEl, x, y);
+    state.dogs.push(dog);
+  }
+
   function updateCatVelocityFromInput() {
     const up = state.pressedKeys.has('ArrowUp') || state.pressedKeys.has('KeyW');
     const down = state.pressedKeys.has('ArrowDown') || state.pressedKeys.has('KeyS');
@@ -153,7 +190,7 @@
     if (remaining !== state.remainingSeconds) {
       state.remainingSeconds = remaining;
       timeEl.textContent = String(remaining);
-      if (remaining <= 0) return endGame();
+      if (remaining <= 0) return endGame('time');
     }
 
     // Inputs -> cat velocity
@@ -172,6 +209,38 @@
     if (state.spawnTimer >= MOUSE_SPAWN_INTERVAL_MS) {
       state.spawnTimer = 0;
       spawnMouse();
+    }
+
+    // Spawn dogs
+    state.dogSpawnTimer += dt * 1000;
+    if (state.dogSpawnTimer >= DOG_SPAWN_INTERVAL_MS) {
+      state.dogSpawnTimer = 0;
+      spawnDog();
+    }
+
+    // Update dogs (chase cat) and collisions
+    for (let i = 0; i < state.dogs.length; i++) {
+      const d = state.dogs[i];
+      const catCx = state.cat.x + state.cat.width / 2;
+      const catCy = state.cat.y + state.cat.height / 2;
+      const dogCx = d.x + d.width / 2;
+      const dogCy = d.y + d.height / 2;
+      let dx = catCx - dogCx;
+      let dy = catCy - dogCy;
+      const len = Math.hypot(dx, dy) || 1;
+      d.vx = (dx / len) * DOG_SPEED_PX_PER_SEC;
+      d.vy = (dy / len) * DOG_SPEED_PX_PER_SEC;
+
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+
+      d.x = clamp(d.x, 0, stage.clientWidth - d.width);
+      d.y = clamp(d.y, 0, stage.clientHeight - d.height);
+      positionEntity(d.el, d.x, d.y);
+
+      if (rectsOverlap({ x: state.cat.x, y: state.cat.y, width: state.cat.width, height: state.cat.height }, d)) {
+        return endGame('caught');
+      }
     }
 
     // Update mice movement and collisions
@@ -264,6 +333,11 @@
       m.x = clamp(m.x, 0, stage.clientWidth - m.width);
       m.y = clamp(m.y, 0, stage.clientHeight - m.height);
       positionEntity(m.el, m.x, m.y);
+    }
+    for (const d of state.dogs) {
+      d.x = clamp(d.x, 0, stage.clientWidth - d.width);
+      d.y = clamp(d.y, 0, stage.clientHeight - d.height);
+      positionEntity(d.el, d.x, d.y);
     }
   });
   resizeObserver.observe(stage);
