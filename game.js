@@ -126,6 +126,32 @@
     );
   }
 
+  // Collision-aware movement against decor obstacles
+  function moveWithCollisions(entity, velX, velY, dt) {
+    const obstacles = state.decors;
+    let targetX = clamp(entity.x + velX * dt, 0, stage.clientWidth - entity.width);
+    let hitX = false;
+    for (const o of obstacles) {
+      if (!o || !o.solid) continue;
+      if (rectsOverlap({ x: targetX, y: entity.y, width: entity.width, height: entity.height }, o)) {
+        hitX = true;
+        if (velX > 0) targetX = o.x - entity.width; else if (velX < 0) targetX = o.x + o.width;
+      }
+    }
+    let targetY = clamp(entity.y + velY * dt, 0, stage.clientHeight - entity.height);
+    let hitY = false;
+    for (const o of obstacles) {
+      if (!o || !o.solid) continue;
+      if (rectsOverlap({ x: targetX, y: targetY, width: entity.width, height: entity.height }, o)) {
+        hitY = true;
+        if (velY > 0) targetY = o.y - entity.height; else if (velY < 0) targetY = o.y + o.height;
+      }
+    }
+    entity.x = targetX;
+    entity.y = targetY;
+    return { hitX, hitY };
+  }
+
   // Helpers & variants
   function randBetween(min, max) { return Math.random() * (max - min) + min; }
   function pickWeighted(items) {
@@ -161,6 +187,7 @@
   }
 
   function clearDecors() {
+    state.decors.forEach(d => d.el?.remove());
     stage.querySelectorAll('.decor').forEach(d => d.remove());
     state.decors = [];
   }
@@ -175,7 +202,7 @@
     const px = x != null ? x : randBetween(6, Math.max(6, stage.clientWidth - w - 6));
     const py = y != null ? y : randBetween(6, Math.max(6, stage.clientHeight - h - 6));
     el.style.transform = `translate(${px}px, ${py}px)`;
-    state.decors.push(el);
+    state.decors.push({ el, x: px, y: py, width: w, height: h, solid: true });
   }
 
   function applyMapTheme(mapKey) {
@@ -293,6 +320,19 @@
     state.cat.vy = (dy / len) * speed;
   }
 
+  // Visual +score
+  function spawnPop(text, x, y, color) {
+    const el = document.createElement('div');
+    el.className = 'pop';
+    el.textContent = text;
+    if (color) el.style.color = color;
+    stage.appendChild(el);
+    el.style.setProperty('--x', x + 'px');
+    el.style.setProperty('--y', y + 'px');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+    return el;
+  }
+
   function update(dt) {
     // Time
     state.elapsedMs += dt * 1000;
@@ -306,12 +346,8 @@
     // Inputs -> cat velocity
     updateCatVelocityFromInput();
 
-    // Move cat
-    state.cat.x += state.cat.vx * dt;
-    state.cat.y += state.cat.vy * dt;
-
-    state.cat.x = clamp(state.cat.x, 0, stage.clientWidth - state.cat.width);
-    state.cat.y = clamp(state.cat.y, 0, stage.clientHeight - state.cat.height);
+    // Move cat with obstacle collisions
+    moveWithCollisions(state.cat, state.cat.vx, state.cat.vy, dt);
     positionEntity(catEl, state.cat.x, state.cat.y);
 
     // Spawn mice
@@ -341,11 +377,7 @@
       d.vx = (dx / len) * d.speed;
       d.vy = (dy / len) * d.speed;
 
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-
-      d.x = clamp(d.x, 0, stage.clientWidth - d.width);
-      d.y = clamp(d.y, 0, stage.clientHeight - d.height);
+      moveWithCollisions(d, d.vx, d.vy, dt);
       positionEntity(d.el, d.x, d.y);
 
       if (rectsOverlap({ x: state.cat.x, y: state.cat.y, width: state.cat.width, height: state.cat.height }, d)) {
@@ -363,14 +395,13 @@
       m.vx = Math.cos(angle) * speed;
       m.vy = Math.sin(angle) * speed;
 
-      m.x += m.vx * dt;
-      m.y += m.vy * dt;
+      const naiveX = clamp(m.x + m.vx * dt, 0, stage.clientWidth - m.width);
+      const naiveY = clamp(m.y + m.vy * dt, 0, stage.clientHeight - m.height);
+      const { hitX, hitY } = moveWithCollisions(m, m.vx, m.vy, dt);
 
-      // bounce on walls
-      if (m.x <= 0) { m.x = 0; m.vx = Math.abs(m.vx); }
-      if (m.y <= 0) { m.y = 0; m.vy = Math.abs(m.vy); }
-      if (m.x + m.width >= stage.clientWidth) { m.x = stage.clientWidth - m.width; m.vx = -Math.abs(m.vx); }
-      if (m.y + m.height >= stage.clientHeight) { m.y = stage.clientHeight - m.height; m.vy = -Math.abs(m.vy); }
+      // bounce on walls or obstacles
+      if (hitX || naiveX !== m.x) { m.vx = -m.vx; }
+      if (hitY || naiveY !== m.y) { m.vy = -m.vy; }
 
       positionEntity(m.el, m.x, m.y);
 
@@ -381,6 +412,7 @@
         state.mice.splice(i, 1);
         state.score += (m.scoreValue || 1);
         scoreEl.textContent = String(state.score);
+        spawnPop(`+${m.scoreValue || 1}`, m.x + m.width / 2, m.y);
       }
     }
   }
