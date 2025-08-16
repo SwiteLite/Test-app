@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat vs Souris - Jardin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <div class="hud-item"><span>Score:</span> <strong id="score">0</strong></div>
+        <div class="hud-item"><span>Temps:</span> <strong id="time">60</strong>s</div>
+        <div class="hud-item small"><button id="btn-restart" class="btn ghost" aria-label="Rejouer">Rejouer</button></div>
+      </header>
+
+      <main class="stage-wrapper">
+        <div id="stage" aria-label="Jardin de jeu" role="application" tabindex="0">
+          <div id="cat" class="entity cat" aria-label="Chat" title="Chat"></div>
+          <!-- Souris seront injectées ici -->
+        </div>
+      </main>
+
+      <div id="overlay" class="overlay show" role="dialog" aria-modal="true">
+        <div class="panel">
+          <h1>Chat vs Souris</h1>
+          <p>Attrape un maximum de souris dans le jardin avant la fin du temps, et évite les chiens !</p>
+          <ul class="help">
+            <li><strong>Clavier</strong> : flèches ou WASD pour déplacer le chat</li>
+            <li><strong>Mobile</strong> : utilisez les flèches à l’écran</li>
+            <li><strong>Attention</strong> : les chiens te poursuivent — s’ils te touchent, c’est perdu.</li>
+          </ul>
+          <div class="actions">
+            <button id="btn-start" class="btn primary">Jouer</button>
+          </div>
+        </div>
+      </div>
+
+      <nav id="touch-controls" aria-label="Contrôles tactiles">
+        <button class="dpad up" data-dir="up" aria-label="Haut">▲</button>
+        <div class="middle-row">
+          <button class="dpad left" data-dir="left" aria-label="Gauche">◀</button>
+          <button class="dpad right" data-dir="right" aria-label="Droite">▶</button>
+        </div>
+        <button class="dpad down" data-dir="down" aria-label="Bas">▼</button>
+      </nav>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
