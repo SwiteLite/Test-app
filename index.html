@@ -33,6 +33,26 @@
             <li><strong>Mobile</strong> : utilisez les flèches à l’écran</li>
             <li><strong>Attention</strong> : les chiens te poursuivent — s’ils te touchent, c’est perdu.</li>
           </ul>
+          <div class="menu-grid">
+            <div class="form-group">
+              <label for="select-difficulty">Difficulté</label>
+              <select id="select-difficulty">
+                <option value="facile">Facile</option>
+                <option value="normal" selected>Normal</option>
+                <option value="difficile">Difficile</option>
+                <option value="insane">Insane</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="select-map">Carte</label>
+              <select id="select-map">
+                <option value="jardin" selected>Jardin</option>
+                <option value="ville">Ville</option>
+                <option value="neige">Neige</option>
+                <option value="nuit">Nuit</option>
+              </select>
+            </div>
+          </div>
           <div class="actions">
             <button id="btn-start" class="btn primary">Jouer</button>
           </div>
