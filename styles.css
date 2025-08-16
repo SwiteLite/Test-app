@@ -58,6 +58,7 @@ body {
   position: absolute;
   will-change: transform;
   transition: transform 0.02s linear;
+  z-index: 2;
 }
 
 /* Cat */
@@ -96,6 +97,10 @@ body {
   right: -6px; bottom: -6px;
   border-radius: 50%;
 }
+/* Mouse variants */
+.mouse.speedy { background: radial-gradient(60% 60% at 50% 40%, #e8f0ff, #9bb6ff); }
+.mouse.fat { background: radial-gradient(60% 60% at 50% 40%, #e8e0d6, #b8a899); }
+.mouse.golden { background: radial-gradient(60% 60% at 50% 40%, #fff2b0, #f2c94c); box-shadow: 0 4px 0 rgba(0,0,0,0.15), 0 0 10px rgba(242,201,76,0.6); }
 
 /* Overlay */
 .overlay {
@@ -104,6 +109,7 @@ body {
   background: rgba(0,0,0,0.25);
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s ease;
+  z-index: 1000;
 }
 .overlay.show { opacity: 1; pointer-events: auto; }
 .panel {
@@ -161,6 +167,89 @@ body {
 }
 .dog::before { left: 7px; }
 .dog::after { right: 7px; }
+/* Dog variants */
+.dog.bulldog { background: radial-gradient(60% 60% at 50% 40%, #d19b73, #7a4c2e); }
+.dog.greyhound { background: radial-gradient(60% 60% at 50% 40%, #c0c0c0, #7a7a7a); }
+.dog.wolf { background: radial-gradient(60% 60% at 50% 40%, #aeb8c2, #4a5b6a); }
+
+/* Map themes */
+#stage.map-garden {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.18), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.18), transparent 40%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0 10px, rgba(0,0,0,0.04) 10px 20px),
+    #66b96f;
+}
+#stage.map-city {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,255,255,0.1), transparent 45%),
+    radial-gradient(circle at 70% 80%, rgba(0,0,0,0.1), transparent 45%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 12px, rgba(0,0,0,0.05) 12px 24px),
+    #8d8f94;
+}
+#stage.map-snow {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.6), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.5), transparent 40%),
+    linear-gradient(180deg, #eaf6ff 0%, #d9f2ff 40%, #cfe9ff 100%);
+}
+#stage.map-night {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.08), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.08), transparent 40%),
+    linear-gradient(180deg, #0d1b2a 0%, #06111a 100%);
+}
+
+/* Decors */
+.decor {
+  position: absolute;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 0 rgba(0,0,0,0.1));
+  z-index: 1;
+}
+.decor.tree { width: 48px; height: 64px; background: linear-gradient(180deg, #3e7c45, #285b2f); border-radius: 12px; }
+.decor.bush { width: 44px; height: 28px; background: linear-gradient(180deg, #5aa85f, #3a7c43); border-radius: 18px; }
+.decor.rock { width: 34px; height: 24px; background: linear-gradient(180deg, #bfc6cc, #8b949e); border-radius: 12px; }
+.decor.lamp { width: 10px; height: 48px; background: linear-gradient(180deg, #333, #111); border-radius: 3px; }
+.decor.bench { width: 64px; height: 22px; background: linear-gradient(180deg, #c48a5a, #7f4a2f); border-radius: 6px; }
+.decor.box { width: 24px; height: 24px; background: linear-gradient(180deg, #a67949, #6b4a2d); border-radius: 4px; }
+.decor.cone { width: 16px; height: 24px; background: linear-gradient(180deg, #ff994f, #ff6a00); border-radius: 6px; }
+.decor.pine { width: 44px; height: 58px; background: linear-gradient(180deg, #2e6b34, #1e4723); border-radius: 12px; }
+.decor.snowman { width: 32px; height: 40px; background: radial-gradient(60% 60% at 50% 40%, #ffffff, #e6f0f3); border-radius: 14px; }
+.decor.ice { width: 120px; height: 20px; background: linear-gradient(180deg, rgba(166,220,255,0.85), rgba(117,192,255,0.85)); border-radius: 10px; }
+
+/* Overlay form controls */
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0 18px;
+}
+.form-group { text-align: left; }
+.form-group label { display: block; font-weight: 800; margin: 0 0 6px; font-size: 14px; }
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid rgba(0,0,0,0.08);
+  background: #f7f9fb;
+  font-weight: 700;
+}
+
+/* FX */
+.pop {
+  position: absolute;
+  font-weight: 800;
+  color: #1e9a5f;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.12);
+  animation: popUp 0.6s ease-out forwards;
+  z-index: 3;
+}
+@keyframes popUp {
+  from { opacity: 0; transform: translate(var(--x,0), var(--y,0)) scale(0.9); }
+  20% { opacity: 1; }
+  to { opacity: 0; transform: translate(calc(var(--x,0) + 0px), calc(var(--y,0) - 24px)) scale(1.1); }
+}
 
 @media (min-width: 900px) {
   #touch-controls { display: none; }

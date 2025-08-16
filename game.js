@@ -8,18 +8,19 @@
   const btnRestart = document.getElementById('btn-restart');
 
   const touchControls = document.getElementById('touch-controls');
+  const selectDifficulty = document.getElementById('select-difficulty');
+  const selectMap = document.getElementById('select-map');
 
   /**
    * Game configuration
    */
   const GAME_DURATION_SECONDS = 60;
-  const CAT_SPEED_PX_PER_SEC = 260;
-  const MOUSE_SPEED_PX_PER_SEC = 140;
-  const MOUSE_SPAWN_INTERVAL_MS = 1100;
-  const MAX_MICE = 12;
-  const DOG_SPEED_PX_PER_SEC = 220;
-  const DOG_SPAWN_INTERVAL_MS = 6000;
-  const MAX_DOGS = 3;
+  const DIFFICULTY_CONFIG = {
+    facile: { catSpeed: 280, mouseSpeed: 120, mouseSpawnMs: 1200, maxMice: 10, dogSpeed: 180, dogSpawnMs: 7000, maxDogs: 2, goldenChance: 0.06 },
+    normal: { catSpeed: 260, mouseSpeed: 140, mouseSpawnMs: 1100, maxMice: 12, dogSpeed: 220, dogSpawnMs: 6000, maxDogs: 3, goldenChance: 0.08 },
+    difficile: { catSpeed: 250, mouseSpeed: 160, mouseSpawnMs: 950, maxMice: 14, dogSpeed: 250, dogSpawnMs: 5200, maxDogs: 4, goldenChance: 0.10 },
+    insane: { catSpeed: 240, mouseSpeed: 190, mouseSpawnMs: 800, maxMice: 16, dogSpeed: 290, dogSpawnMs: 4500, maxDogs: 5, goldenChance: 0.12 },
+  };
 
   /**
    * Runtime state
@@ -38,6 +39,10 @@
     dogs: [],
     dogSpawnTimer: 0,
     endReason: null,
+    difficultyKey: 'normal',
+    mapKey: 'jardin',
+    config: DIFFICULTY_CONFIG.normal,
+    decors: [],
   };
 
   function resetGame() {
@@ -62,6 +67,9 @@
     state.dogSpawnTimer = 0;
     state.endReason = null;
 
+    // Clear decors and apply map theme
+    applyMapTheme(state.mapKey);
+
     scoreEl.textContent = String(state.score);
     timeEl.textContent = String(state.remainingSeconds);
     positionEntity(catEl, state.cat.x, state.cat.y);
@@ -71,6 +79,15 @@
   }
 
   function startGame() {
+    // Apply selections
+    if (selectDifficulty && DIFFICULTY_CONFIG[selectDifficulty.value]) {
+      state.difficultyKey = selectDifficulty.value;
+      state.config = DIFFICULTY_CONFIG[state.difficultyKey];
+    }
+    if (selectMap) {
+      state.mapKey = selectMap.value || 'jardin';
+    }
+
     resetGame();
     overlayEl.classList.remove('show');
     state.running = true;
@@ -109,55 +126,174 @@
     );
   }
 
-  function spawnMouse() {
-    if (state.mice.length >= MAX_MICE) return;
+  // Collision-aware movement against decor obstacles
+  function moveWithCollisions(entity, velX, velY, dt) {
+    const obstacles = state.decors;
+    let targetX = clamp(entity.x + velX * dt, 0, stage.clientWidth - entity.width);
+    let hitX = false;
+    for (const o of obstacles) {
+      if (!o || !o.solid) continue;
+      if (rectsOverlap({ x: targetX, y: entity.y, width: entity.width, height: entity.height }, o)) {
+        hitX = true;
+        if (velX > 0) targetX = o.x - entity.width; else if (velX < 0) targetX = o.x + o.width;
+      }
+    }
+    let targetY = clamp(entity.y + velY * dt, 0, stage.clientHeight - entity.height);
+    let hitY = false;
+    for (const o of obstacles) {
+      if (!o || !o.solid) continue;
+      if (rectsOverlap({ x: targetX, y: targetY, width: entity.width, height: entity.height }, o)) {
+        hitY = true;
+        if (velY > 0) targetY = o.y - entity.height; else if (velY < 0) targetY = o.y + o.height;
+      }
+    }
+    entity.x = targetX;
+    entity.y = targetY;
+    return { hitX, hitY };
+  }
 
+  // Helpers & variants
+  function randBetween(min, max) { return Math.random() * (max - min) + min; }
+  function pickWeighted(items) {
+    const total = items.reduce((s, it) => s + (it.weight || 1), 0);
+    let r = Math.random() * total;
+    for (const it of items) {
+      r -= (it.weight || 1);
+      if (r <= 0) return it;
+    }
+    return items[items.length - 1];
+  }
+
+  function chooseMouseVariant() {
+    // Golden mouse chance based on difficulty
+    const variants = [
+      { name: 'normal', className: '', speedMult: 1.0, score: 1, width: 32, height: 32, weight: 60 },
+      { name: 'speedy', className: 'speedy', speedMult: 1.35, score: 1, width: 30, height: 30, weight: 20 },
+      { name: 'fat', className: 'fat', speedMult: 0.75, score: 2, width: 36, height: 36, weight: 16 },
+    ];
+    if (Math.random() < (state.config.goldenChance || 0)) {
+      return { name: 'golden', className: 'golden', speedMult: 1.15, score: 3, width: 32, height: 32 };
+    }
+    return pickWeighted(variants);
+  }
+
+  function chooseDogVariant() {
+    const variants = [
+      { name: 'bulldog', className: 'bulldog', speedMult: 0.9, size: 46, weight: 40 },
+      { name: 'greyhound', className: 'greyhound', speedMult: 1.2, size: 42, weight: 40 },
+      { name: 'wolf', className: 'wolf', speedMult: 1.35, size: 44, weight: 20 },
+    ];
+    return pickWeighted(variants);
+  }
+
+  function clearDecors() {
+    state.decors.forEach(d => d.el?.remove());
+    stage.querySelectorAll('.decor').forEach(d => d.remove());
+    state.decors = [];
+  }
+
+  function spawnDecor(type, x, y) {
+    const el = document.createElement('div');
+    el.className = `decor ${type}`;
+    stage.appendChild(el);
+    // Fallback random positions if not provided
+    const w = el.offsetWidth || 24;
+    const h = el.offsetHeight || 24;
+    const px = x != null ? x : randBetween(6, Math.max(6, stage.clientWidth - w - 6));
+    const py = y != null ? y : randBetween(6, Math.max(6, stage.clientHeight - h - 6));
+    el.style.transform = `translate(${px}px, ${py}px)`;
+    state.decors.push({ el, x: px, y: py, width: w, height: h, solid: true });
+  }
+
+  function applyMapTheme(mapKey) {
+    const classes = ['map-garden', 'map-city', 'map-snow', 'map-night'];
+    stage.classList.remove(...classes);
+    const key = mapKey || 'jardin';
+    const className = key === 'ville' ? 'map-city' : key === 'neige' ? 'map-snow' : key === 'nuit' ? 'map-night' : 'map-garden';
+    stage.classList.add(className);
+    clearDecors();
+    // Spawn simple decor for flavor
+    if (className === 'map-garden') {
+      for (let i = 0; i < 3; i++) spawnDecor('tree');
+      for (let i = 0; i < 4; i++) spawnDecor('bush');
+      for (let i = 0; i < 3; i++) spawnDecor('rock');
+    } else if (className === 'map-city') {
+      for (let i = 0; i < 2; i++) spawnDecor('bench');
+      for (let i = 0; i < 3; i++) spawnDecor('lamp');
+      for (let i = 0; i < 4; i++) spawnDecor('box');
+      for (let i = 0; i < 3; i++) spawnDecor('cone');
+    } else if (className === 'map-snow') {
+      for (let i = 0; i < 3; i++) spawnDecor('pine');
+      for (let i = 0; i < 2; i++) spawnDecor('snowman');
+      for (let i = 0; i < 2; i++) spawnDecor('ice');
+    } else if (className === 'map-night') {
+      for (let i = 0; i < 3; i++) spawnDecor('tree');
+      for (let i = 0; i < 2; i++) spawnDecor('bush');
+      for (let i = 0; i < 3; i++) spawnDecor('lamp');
+    }
+  }
+
+  function spawnMouse() {
+    if (state.mice.length >= state.config.maxMice) return;
+
+    const variant = chooseMouseVariant();
     const mouseEl = document.createElement('div');
-    mouseEl.className = 'entity mouse';
+    mouseEl.className = `entity mouse${variant.className ? ' ' + variant.className : ''}`;
     stage.appendChild(mouseEl);
 
     const side = Math.floor(Math.random() * 4); // 0 top, 1 right, 2 bottom, 3 left
     const padding = 6;
+    const mw = variant.width;
+    const mh = variant.height;
+    mouseEl.style.width = mw + 'px';
+    mouseEl.style.height = mh + 'px';
     let x = 0, y = 0;
     if (side === 0) { // top
-      x = Math.random() * (stage.clientWidth - 32 - padding*2) + padding;
+      x = Math.random() * (stage.clientWidth - mw - padding*2) + padding;
       y = padding;
     } else if (side === 1) { // right
-      x = stage.clientWidth - 32 - padding;
-      y = Math.random() * (stage.clientHeight - 32 - padding*2) + padding;
+      x = stage.clientWidth - mw - padding;
+      y = Math.random() * (stage.clientHeight - mh - padding*2) + padding;
     } else if (side === 2) { // bottom
-      x = Math.random() * (stage.clientWidth - 32 - padding*2) + padding;
-      y = stage.clientHeight - 32 - padding;
+      x = Math.random() * (stage.clientWidth - mw - padding*2) + padding;
+      y = stage.clientHeight - mh - padding;
     } else { // left
       x = padding;
-      y = Math.random() * (stage.clientHeight - 32 - padding*2) + padding;
+      y = Math.random() * (stage.clientHeight - mh - padding*2) + padding;
     }
 
     // Initial velocity pointing inward-ish
     const angle = Math.atan2((stage.clientHeight/2 - y), (stage.clientWidth/2 - x)) + (Math.random()*0.6 - 0.3);
-    const vx = Math.cos(angle) * MOUSE_SPEED_PX_PER_SEC;
-    const vy = Math.sin(angle) * MOUSE_SPEED_PX_PER_SEC;
+    const speed = (state.config.mouseSpeed || 140) * variant.speedMult;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
 
-    const mouse = { x, y, width: 32, height: 32, vx, vy, el: mouseEl };
+    const mouse = { x, y, width: mw, height: mh, vx, vy, el: mouseEl, speed, scoreValue: variant.score };
     positionEntity(mouseEl, x, y);
     state.mice.push(mouse);
   }
 
   function spawnDog() {
-    if (state.dogs.length >= MAX_DOGS) return;
+    if (state.dogs.length >= state.config.maxDogs) return;
+    const v = chooseDogVariant();
     const dogEl = document.createElement('div');
-    dogEl.className = 'entity dog';
+    dogEl.className = `entity dog ${v.className}`;
     stage.appendChild(dogEl);
 
     const padding = 6;
+    const dw = v.size || 44;
+    const dh = v.size || 44;
+    dogEl.style.width = dw + 'px';
+    dogEl.style.height = dh + 'px';
     const side = Math.floor(Math.random() * 4);
     let x = 0, y = 0;
-    if (side === 0) { x = Math.random() * (stage.clientWidth - 44 - padding*2) + padding; y = padding; }
-    else if (side === 1) { x = stage.clientWidth - 44 - padding; y = Math.random() * (stage.clientHeight - 44 - padding*2) + padding; }
-    else if (side === 2) { x = Math.random() * (stage.clientWidth - 44 - padding*2) + padding; y = stage.clientHeight - 44 - padding; }
-    else { x = padding; y = Math.random() * (stage.clientHeight - 44 - padding*2) + padding; }
+    if (side === 0) { x = Math.random() * (stage.clientWidth - dw - padding*2) + padding; y = padding; }
+    else if (side === 1) { x = stage.clientWidth - dw - padding; y = Math.random() * (stage.clientHeight - dh - padding*2) + padding; }
+    else if (side === 2) { x = Math.random() * (stage.clientWidth - dw - padding*2) + padding; y = stage.clientHeight - dh - padding; }
+    else { x = padding; y = Math.random() * (stage.clientHeight - dh - padding*2) + padding; }
 
-    const dog = { x, y, width: 44, height: 44, vx: 0, vy: 0, el: dogEl };
+    const speed = (state.config.dogSpeed || 220) * v.speedMult;
+    const dog = { x, y, width: dw, height: dh, vx: 0, vy: 0, el: dogEl, speed };
     positionEntity(dogEl, x, y);
     state.dogs.push(dog);
   }
@@ -179,8 +315,22 @@
     }
 
     const len = Math.hypot(dx, dy) || 1;
-    state.cat.vx = (dx / len) * CAT_SPEED_PX_PER_SEC;
-    state.cat.vy = (dy / len) * CAT_SPEED_PX_PER_SEC;
+    const speed = state.config?.catSpeed ?? 260;
+    state.cat.vx = (dx / len) * speed;
+    state.cat.vy = (dy / len) * speed;
+  }
+
+  // Visual +score
+  function spawnPop(text, x, y, color) {
+    const el = document.createElement('div');
+    el.className = 'pop';
+    el.textContent = text;
+    if (color) el.style.color = color;
+    stage.appendChild(el);
+    el.style.setProperty('--x', x + 'px');
+    el.style.setProperty('--y', y + 'px');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+    return el;
   }
 
   function update(dt) {
@@ -196,24 +346,20 @@
     // Inputs -> cat velocity
     updateCatVelocityFromInput();
 
-    // Move cat
-    state.cat.x += state.cat.vx * dt;
-    state.cat.y += state.cat.vy * dt;
-
-    state.cat.x = clamp(state.cat.x, 0, stage.clientWidth - state.cat.width);
-    state.cat.y = clamp(state.cat.y, 0, stage.clientHeight - state.cat.height);
+    // Move cat with obstacle collisions
+    moveWithCollisions(state.cat, state.cat.vx, state.cat.vy, dt);
     positionEntity(catEl, state.cat.x, state.cat.y);
 
     // Spawn mice
     state.spawnTimer += dt * 1000;
-    if (state.spawnTimer >= MOUSE_SPAWN_INTERVAL_MS) {
+    if (state.spawnTimer >= (state.config.mouseSpawnMs || 1100)) {
       state.spawnTimer = 0;
       spawnMouse();
     }
 
     // Spawn dogs
     state.dogSpawnTimer += dt * 1000;
-    if (state.dogSpawnTimer >= DOG_SPAWN_INTERVAL_MS) {
+    if (state.dogSpawnTimer >= (state.config.dogSpawnMs || 6000)) {
       state.dogSpawnTimer = 0;
       spawnDog();
     }
@@ -228,14 +374,10 @@
       let dx = catCx - dogCx;
       let dy = catCy - dogCy;
       const len = Math.hypot(dx, dy) || 1;
-      d.vx = (dx / len) * DOG_SPEED_PX_PER_SEC;
-      d.vy = (dy / len) * DOG_SPEED_PX_PER_SEC;
+      d.vx = (dx / len) * d.speed;
+      d.vy = (dy / len) * d.speed;
 
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-
-      d.x = clamp(d.x, 0, stage.clientWidth - d.width);
-      d.y = clamp(d.y, 0, stage.clientHeight - d.height);
+      moveWithCollisions(d, d.vx, d.vy, dt);
       positionEntity(d.el, d.x, d.y);
 
       if (rectsOverlap({ x: state.cat.x, y: state.cat.y, width: state.cat.width, height: state.cat.height }, d)) {
@@ -249,18 +391,17 @@
       // wander: slight steering randomness
       const jitter = 0.4; // radians per second small random drift
       const angle = Math.atan2(m.vy, m.vx) + (Math.random() - 0.5) * jitter * dt;
-      const speed = MOUSE_SPEED_PX_PER_SEC;
+      const speed = m.speed;
       m.vx = Math.cos(angle) * speed;
       m.vy = Math.sin(angle) * speed;
 
-      m.x += m.vx * dt;
-      m.y += m.vy * dt;
+      const naiveX = clamp(m.x + m.vx * dt, 0, stage.clientWidth - m.width);
+      const naiveY = clamp(m.y + m.vy * dt, 0, stage.clientHeight - m.height);
+      const { hitX, hitY } = moveWithCollisions(m, m.vx, m.vy, dt);
 
-      // bounce on walls
-      if (m.x <= 0) { m.x = 0; m.vx = Math.abs(m.vx); }
-      if (m.y <= 0) { m.y = 0; m.vy = Math.abs(m.vy); }
-      if (m.x + m.width >= stage.clientWidth) { m.x = stage.clientWidth - m.width; m.vx = -Math.abs(m.vx); }
-      if (m.y + m.height >= stage.clientHeight) { m.y = stage.clientHeight - m.height; m.vy = -Math.abs(m.vy); }
+      // bounce on walls or obstacles
+      if (hitX || naiveX !== m.x) { m.vx = -m.vx; }
+      if (hitY || naiveY !== m.y) { m.vy = -m.vy; }
 
       positionEntity(m.el, m.x, m.y);
 
@@ -269,8 +410,9 @@
         // remove mouse
         m.el.remove();
         state.mice.splice(i, 1);
-        state.score += 1;
+        state.score += (m.scoreValue || 1);
         scoreEl.textContent = String(state.score);
+        spawnPop(`+${m.scoreValue || 1}`, m.x + m.width / 2, m.y);
       }
     }
   }
@@ -324,6 +466,11 @@
   btnStart?.addEventListener('click', () => startGame());
   btnRestart?.addEventListener('click', () => startGame());
 
+  // Preview map theme on selection change (when overlay is visible)
+  selectMap?.addEventListener('change', () => {
+    applyMapTheme(selectMap.value);
+  });
+
   // Resize handling to keep entities in bounds
   const resizeObserver = new ResizeObserver(() => {
     state.cat.x = clamp(state.cat.x, 0, stage.clientWidth - state.cat.width);
@@ -343,5 +490,6 @@
   resizeObserver.observe(stage);
 
   // Init
+  applyMapTheme(state.mapKey);
   resetGame();
 })();
